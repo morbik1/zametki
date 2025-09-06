@@ -63,12 +63,22 @@
   <!-- Индикатор страницы -->
   <div class="fixed bottom-3 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-lg shadow-md font-semibold text-gray-700" id="pageIndicator"></div>
 
+  <!-- Сообщения -->
+  <div id="messageBox" class="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-md hidden"></div>
+
   <script>
     const toolbarHeight = document.getElementById('toolbar').offsetHeight;
     let data = JSON.parse(localStorage.getItem("notesApp")) || { pages: [[]], currentPage: 0 };
 
     function save() {
       localStorage.setItem("notesApp", JSON.stringify(data));
+    }
+
+    function showMessage(text) {
+      const msg = document.getElementById("messageBox");
+      msg.textContent = text;
+      msg.classList.remove("hidden");
+      setTimeout(() => msg.classList.add("hidden"), 3000);
     }
 
     function createNoteElement(note) {
@@ -111,6 +121,19 @@
         render();
       };
 
+      // Копирование
+      const copy = document.createElement("span");
+      copy.className = "cursor-pointer text-blue-600";
+      copy.textContent = "📋";
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(note.text);
+          showMessage("Текст заметки скопирован!");
+        } catch (e) {
+          showMessage("Ошибка копирования");
+        }
+      };
+
       // Удаление
       const del = document.createElement("span");
       del.className = "cursor-pointer text-red-500";
@@ -121,7 +144,7 @@
         render();
       };
 
-      btns.append(pin, color, del);
+      btns.append(pin, color, copy, del);
       header.appendChild(btns);
 
       // Текст
@@ -218,6 +241,15 @@
       }
     };
     document.getElementById("nextPage").onclick = () => {
+      let currentNotes = data.pages[data.currentPage];
+      if (currentNotes.length < 5) {
+        showMessage("Создайте минимум 5 заметок, прежде чем переходить дальше!");
+        return;
+      }
+      if (currentNotes.some(n => !n.text.trim())) {
+        showMessage("Необходимо, чтобы в каждой заметке был текст!");
+        return;
+      }
       if (data.currentPage === data.pages.length - 1) {
         data.pages.push([]);
       }
