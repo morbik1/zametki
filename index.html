@@ -1,264 +1,293 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Мои заметки</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Мои заметки — v3.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @keyframes fadeIn {
-      0% { opacity: 0; transform: scale(0.8) translateY(20px); }
-      100% { opacity: 1; transform: scale(1) translateY(0); }
+    :root{
+      --toolbar-height: 72px;
     }
-    @keyframes fadeOut {
-      0% { opacity: 1; transform: scale(1) translateY(0); }
-      100% { opacity: 0; transform: scale(0.8) translateY(20px); }
-    }
-    .note {
-      position: absolute;
-      min-width: 200px;
-      min-height: 120px;
-      resize: both;
-      overflow: auto;
-      animation: fadeIn 0.3s ease forwards;
-    }
-    .note-header {
-      background: rgba(0,0,0,0.05);
-      padding: 4px 6px;
-      cursor: grab;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(0,0,0,0.1);
-    }
-    .note textarea {
-      width: 100%;
-      height: calc(100% - 30px);
-      resize: none;
-      outline: none;
-      background: transparent;
-      font-size: 15px;
-      padding: 6px;
-    }
-    .pinned {
-      box-shadow: 0 0 15px rgba(239, 68, 68, 0.6) !important;
-    }
-    .fade-out { animation: fadeOut 0.3s ease forwards; }
+    @keyframes fadeIn { 0%{opacity:0;transform:scale(.9) translateY(18px)}100%{opacity:1;transform:none} }
+    @keyframes fadeOut { 0%{opacity:1}100%{opacity:0;transform:scale(.9) translateY(18px)} }
+    .note{ position:absolute; min-width:200px; min-height:120px; resize:both; overflow:auto; animation:fadeIn .28s ease forwards; }
+    .note-header{ background:rgba(0,0,0,0.06); padding:6px; cursor:grab; display:flex; gap:.5rem; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(0,0,0,0.08); }
+    .note textarea{ width:100%; height:calc(100% - 42px); resize:none; outline:none; background:transparent; padding:8px; font-size:14px; }
+    .pinned{ box-shadow:0 0 15px rgba(239,68,68,0.5) !important; }
+    .fade-out{ animation:fadeOut .28s ease forwards; }
+    /* Dark theme overrides */
+    .dark body { background: linear-gradient(135deg,#0f172a,#0b1220) !important; }
+    .dark .toolbar { background: linear-gradient(90deg,#0f172a,#001219); color:#e6eef8; }
+    .dark .page-ind { background:#0b1220; color:#e6eef8; box-shadow:0 6px 18px rgba(0,0,0,0.6); }
+    .hidden { display:none !important; }
   </style>
 </head>
 <body class="bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 h-screen overflow-hidden">
 
-  <!-- Панель -->
-  <div id="toolbar" class="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-4 flex justify-between items-center shadow-lg">
-    <h1 class="text-2xl font-bold tracking-wide">📝 Мои заметки</h1>
-    <div class="flex gap-2">
+  <!-- Toolbar -->
+  <div id="toolbar" class="toolbar bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-4 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-4">
+      <h1 class="text-2xl font-bold">📝 Мои заметки</h1>
+      <input id="search" type="search" placeholder="Поиск по заметкам..." class="rounded-lg px-3 py-1 outline-none" />
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button id="themeToggle" class="bg-white text-gray-800 px-3 py-1 rounded-lg shadow">Тема</button>
+      <label class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg shadow cursor-pointer">
+        <input id="exportBtn" type="button" value="Экспорт" class="hidden"/>
+        <span id="exportVisible" class="text-gray-800 select-none">Экспорт</span>
+      </label>
+      <input id="importFile" type="file" accept="application/json" class="hidden" />
+      <button id="importBtn" class="bg-white text-gray-800 px-3 py-1 rounded-lg shadow">Импорт</button>
+
       <button id="prevPage" class="bg-white text-blue-600 font-semibold px-3 py-1 rounded-xl shadow hover:bg-gray-100">⬅</button>
       <button id="nextPage" class="bg-white text-blue-600 font-semibold px-3 py-1 rounded-xl shadow hover:bg-gray-100">➡</button>
-      <button id="addNote" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded-xl shadow-md hover:bg-gray-100 transition">
-        + Заметка
-      </button>
+      <button id="addNote" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded-xl shadow-md hover:bg-gray-100">+ Заметка</button>
     </div>
   </div>
 
-  <!-- Индикатор страницы -->
-  <div class="fixed bottom-3 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-lg shadow-md font-semibold text-gray-700" id="pageIndicator"></div>
+  <!-- Page indicator -->
+  <div id="pageIndicator" class="page-ind fixed bottom-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-lg shadow-md font-semibold text-gray-700"></div>
 
-  <!-- Сообщения -->
+  <!-- transient message -->
   <div id="messageBox" class="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-md hidden"></div>
 
-  <script>
-    const toolbarHeight = document.getElementById('toolbar').offsetHeight;
-    let data = JSON.parse(localStorage.getItem("notesApp")) || { pages: [[]], currentPage: 0 };
+<script>
+/* ============================
+   Утилиты: base64 (utf8-safe)
+   ============================ */
+function toBase64Unicode(obj){
+  const s = JSON.stringify(obj);
+  // utf8-safe base64
+  return btoa(encodeURIComponent(s).replace(/%([0-9A-F]{2})/g, (m,p)=> String.fromCharCode('0x'+p)));
+}
+function fromBase64Unicode(b64){
+  try{
+    const str = decodeURIComponent(Array.prototype.map.call(atob(b64), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return JSON.parse(str);
+  }catch(e){ return null; }
+}
 
-    function save() {
-      localStorage.setItem("notesApp", JSON.stringify(data));
-    }
+/* ============================
+   Storage wrapper (base64)
+   ============================ */
+const STORAGE_KEY = "notesApp_b64_v3";
+function loadData(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return { pages:[[]], currentPage:0 };
+  const decoded = fromBase64Unicode(raw);
+  if(decoded) return decoded;
+  // fallback: maybe stored plain JSON under older key
+  try {
+    const alt = JSON.parse(localStorage.getItem("notesApp") || "{}");
+    if(alt && alt.pages) return alt;
+  } catch(e) {}
+  return { pages:[[]], currentPage:0 };
+}
+function saveData(obj){
+  try{
+    localStorage.setItem(STORAGE_KEY, toBase64Unicode(obj));
+  }catch(e){
+    showMessage("Ошибка сохранения: локальное хранилище заполнено или недоступно");
+  }
+}
 
-    function showMessage(text) {
-      const msg = document.getElementById("messageBox");
-      msg.textContent = text;
-      msg.classList.remove("hidden");
-      setTimeout(() => msg.classList.add("hidden"), 3000);
-    }
+/* ============================
+   App state
+   ============================ */
+const toolbarHeight = document.getElementById('toolbar').offsetHeight;
+let data = loadData();
 
-    function createNoteElement(note) {
-      const div = document.createElement("div");
-      div.className = "note rounded-xl shadow-xl bg-yellow-100";
-      if (note.pinned) div.classList.add("pinned");
+/* show/hide message */
+function showMessage(text, time=3000){
+  const box = document.getElementById('messageBox');
+  box.textContent = text;
+  box.classList.remove('hidden');
+  clearTimeout(box._t);
+  box._t = setTimeout(()=> box.classList.add('hidden'), time);
+}
 
-      div.style.left = note.x + "px";
-      div.style.top = note.y + "px";
-      div.style.width = note.width + "px";
-      div.style.height = note.height + "px";
+/* ============================
+   Create note DOM
+   ============================ */
+function createNoteElement(note){
+  const div = document.createElement('div');
+  div.className = 'note rounded-xl shadow-xl';
+  if(note.pinned) div.classList.add('pinned');
+  // position/size
+  div.style.left = (note.x ?? 120) + 'px';
+  div.style.top = (note.y ?? (toolbarHeight + 20)) + 'px';
+  div.style.width = (note.width ?? 220) + 'px';
+  div.style.height = (note.height ?? 140) + 'px';
 
-      // Шапка заметки
-      const header = document.createElement("div");
-      header.className = "note-header";
+  // header
+  const header = document.createElement('div');
+  header.className = 'note-header';
 
-      // Кнопки
-      const btns = document.createElement("div");
-      btns.className = "flex gap-2 text-lg";
+  const leftBtns = document.createElement('div');
+  leftBtns.className = 'flex items-center gap-2';
 
-      // Пин
-      const pin = document.createElement("span");
-      pin.className = "cursor-pointer";
-      pin.textContent = note.pinned ? "📌" : "📍";
-      pin.onclick = () => {
-        note.pinned = !note.pinned;
-        save();
-        render();
-      };
+  // pin
+  const pin = document.createElement('button');
+  pin.textContent = note.pinned ? '📌' : '📍';
+  pin.title = 'Закрепить/открепить';
+  pin.onclick = (e)=>{ e.stopPropagation(); note.pinned = !note.pinned; saveAndRender(); };
 
-      // Цвет
-      const color = document.createElement("span");
-      color.className = "cursor-pointer";
-      color.textContent = "🎨";
-      color.onclick = () => {
-        const colors = ["bg-yellow-100","bg-green-100","bg-pink-100","bg-blue-100","bg-purple-100"];
-        let i = colors.indexOf(note.color || "bg-yellow-100");
-        note.color = colors[(i+1) % colors.length];
-        save();
-        render();
-      };
+  // color cycle
+  const colorBtn = document.createElement('button');
+  colorBtn.textContent = '🎨';
+  colorBtn.title = 'Сменить цвет';
+  colorBtn.onclick = (e)=>{ e.stopPropagation(); const colors = ['bg-yellow-100','bg-green-100','bg-pink-100','bg-blue-100','bg-purple-100']; let i = colors.indexOf(note.color || 'bg-yellow-100'); note.color = colors[(i+1)%colors.length]; saveAndRender(); };
 
-      // Копирование
-      const copy = document.createElement("span");
-      copy.className = "cursor-pointer text-blue-600";
-      copy.textContent = "📋";
-      copy.onclick = async () => {
-        try {
-          await navigator.clipboard.writeText(note.text);
-          showMessage("Текст заметки скопирован!");
-        } catch (e) {
-          showMessage("Ошибка копирования");
-        }
-      };
+  leftBtns.append(pin, colorBtn);
 
-      // Удаление
-      const del = document.createElement("span");
-      del.className = "cursor-pointer text-red-500";
-      del.textContent = "❌";
-      del.onclick = () => {
-        data.pages[data.currentPage] = data.pages[data.currentPage].filter(n => n !== note);
-        save();
-        render();
-      };
+  const rightBtns = document.createElement('div');
+  rightBtns.className = 'flex items-center gap-2';
 
-      btns.append(pin, color, copy, del);
-      header.appendChild(btns);
+  // copy
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = '📋';
+  copyBtn.title = 'Копировать текст';
+  copyBtn.onclick = async (e)=>{ e.stopPropagation(); try{ await navigator.clipboard.writeText(note.text || ''); showMessage('Текст скопирован'); }catch(err){ showMessage('Ошибка копирования'); } };
 
-      // Текст
-      const textarea = document.createElement("textarea");
-      textarea.value = note.text;
-      textarea.oninput = () => {
-        note.text = textarea.value;
-        save();
-      };
+  // delete
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '❌';
+  delBtn.title = 'Удалить заметку';
+  delBtn.onclick = (e)=>{ e.stopPropagation(); const page = data.pages[data.currentPage]; data.pages[data.currentPage] = page.filter(n => n !== note); saveAndRender(); };
 
-      div.appendChild(header);
-      div.appendChild(textarea);
+  rightBtns.append(copyBtn, delBtn);
 
-      // Цвет заметки
-      div.className = "note rounded-xl shadow-xl " + (note.color || "bg-yellow-100");
+  header.appendChild(leftBtns);
+  header.appendChild(rightBtns);
 
-      // Перетаскивание (только за шапку)
-      let offsetX, offsetY, isDragging = false;
-      header.addEventListener("mousedown", (e) => {
-        if (note.pinned) return;
-        isDragging = true;
-        offsetX = e.clientX - div.offsetLeft;
-        offsetY = e.clientY - div.offsetTop;
-        header.style.cursor = "grabbing";
+  // textarea
+  const ta = document.createElement('textarea');
+  ta.value = note.text || '';
+  ta.placeholder = 'Текст заметки...';
+  ta.oninput = ()=>{ note.text = ta.value; saveData(data); };
 
-        function onMouseMove(e) {
-          if (!isDragging) return;
-          let newX = e.clientX - offsetX;
-          let newY = e.clientY - offsetY;
-          if (newY < toolbarHeight) newY = toolbarHeight; 
-          div.style.left = newX + "px";
-          div.style.top = newY + "px";
-        }
+  // apply color class
+  div.classList.add(note.color || 'bg-yellow-100');
 
-        function onMouseUp() {
-          if (isDragging) {
-            note.x = div.offsetLeft;
-            note.y = div.offsetTop;
-            save();
-          }
-          isDragging = false;
-          header.style.cursor = "grab";
-          document.removeEventListener("mousemove", onMouseMove);
-          document.removeEventListener("mouseup", onMouseUp);
-        }
+  div.appendChild(header);
+  div.appendChild(ta);
 
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
-      });
+  // drag (only on header)
+  let isDragging=false, offX=0, offY=0;
+  header.addEventListener('mousedown',(e)=>{
+    if(note.pinned) return;
+    isDragging=true; offX = e.clientX - div.offsetLeft; offY = e.clientY - div.offsetTop; header.style.cursor='grabbing';
+    function onMove(ev){ if(!isDragging) return; let nx = ev.clientX - offX, ny = ev.clientY - offY; if(ny < toolbarHeight) ny = toolbarHeight; div.style.left = nx+'px'; div.style.top = ny+'px'; }
+    function onUp(){ if(isDragging){ note.x = div.offsetLeft; note.y = div.offsetTop; saveData(data); } isDragging=false; header.style.cursor='grab'; document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 
-      // Resize сохранение
-      const observer = new ResizeObserver(() => {
-        note.width = div.offsetWidth;
-        note.height = div.offsetHeight;
-        save();
-      });
-      observer.observe(div);
+  // resize observe
+  const ro = new ResizeObserver(()=>{ note.width = div.offsetWidth; note.height = div.offsetHeight; saveData(data); });
+  ro.observe(div);
 
-      return div;
-    }
+  return div;
+}
 
-    function render(direction = null) {
-      let existingNotes = document.querySelectorAll(".note");
-      if (direction) {
-        existingNotes.forEach(n => {
-          n.classList.add("fade-out");
-          setTimeout(() => n.remove(), 300);
-        });
-      } else {
-        existingNotes.forEach(n => n.remove());
-      }
+/* ============================
+   Render (with optional search)
+   ============================ */
+function render(searchText = ''){
+  // remove old
+  document.querySelectorAll('.note').forEach(n => n.remove());
+  const notes = data.pages[data.currentPage] || [];
+  const filtered = notes.filter(n => {
+    if(!searchText) return true;
+    const s = (n.text || '') + ' ' + (n.tags || []).join(' ');
+    return s.toLowerCase().includes(searchText.toLowerCase());
+  });
+  filtered.forEach(n => {
+    document.body.appendChild(createNoteElement(n));
+  });
+  document.getElementById('pageIndicator').textContent = `Страница ${data.currentPage+1} / ${data.pages.length}`;
+}
 
-      let notes = data.pages[data.currentPage];
-      notes.forEach(note => {
-        document.body.appendChild(createNoteElement(note));
-      });
-      document.getElementById("pageIndicator").textContent = `Страница ${data.currentPage + 1} / ${data.pages.length}`;
-    }
+/* ============================
+   Helpers: save & render
+   ============================ */
+function saveAndRender(){ saveData(data); render(document.getElementById('search').value.trim()); }
 
-    // Добавить заметку
-    document.getElementById("addNote").onclick = () => {
-      let newNote = { text: "", x: 120, y: toolbarHeight + 20, width: 220, height: 140, pinned: false, color: "bg-yellow-100" };
-      data.pages[data.currentPage].push(newNote);
-      save();
+/* ============================
+   Init & bindings
+   ============================ */
+document.getElementById('addNote').addEventListener('click', ()=>{
+  const newNote = { text:'', x:120, y: toolbarHeight + 30, width:240, height:150, pinned:false, color:'bg-yellow-100' };
+  data.pages[data.currentPage].push(newNote);
+  saveAndRender();
+});
+
+document.getElementById('prevPage').addEventListener('click', ()=>{
+  if(data.currentPage > 0){ data.currentPage--; saveAndRender(); }
+});
+
+document.getElementById('nextPage').addEventListener('click', ()=>{
+  const cur = data.pages[data.currentPage] || [];
+  if(cur.length < 5){ showMessage('Создайте минимум 5 заметок, прежде чем переходить дальше!'); return; }
+  if(cur.some(n => !(n.text||'').trim())){ showMessage('Необходимо, чтобы в каждой заметке был текст!'); return; }
+  if(data.currentPage === data.pages.length -1) data.pages.push([]);
+  data.currentPage++; saveAndRender();
+});
+
+/* Search */
+document.getElementById('search').addEventListener('input', (e)=> render(e.target.value.trim()));
+
+/* Theme toggle */
+const themeToggle = document.getElementById('themeToggle');
+function applyTheme(isDark){
+  if(isDark) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
+  localStorage.setItem('notes_theme_dark', isDark ? '1' : '0');
+}
+themeToggle.addEventListener('click', ()=>{
+  const isDark = !document.documentElement.classList.contains('dark');
+  applyTheme(isDark);
+});
+applyTheme(localStorage.getItem('notes_theme_dark') === '1');
+
+/* Export (downloads decoded JSON) */
+document.getElementById('exportVisible').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'notes-export.json'; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 3000);
+});
+
+/* Import */
+document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      // Basic sanity check: pages should be array
+      if(!parsed.pages || !Array.isArray(parsed.pages)) { showMessage('Неверный формат файла'); return; }
+      data = parsed;
+      // save encoded
+      saveData(data);
       render();
-    };
+      showMessage('Импорт завершён');
+    }catch(err){ showMessage('Ошибка импорта: неверный JSON'); }
+  };
+  reader.readAsText(f);
+});
 
-    // Страницы
-    document.getElementById("prevPage").onclick = () => {
-      if (data.currentPage > 0) {
-        data.currentPage--;
-        render("left");
-        save();
-      }
-    };
-    document.getElementById("nextPage").onclick = () => {
-      let currentNotes = data.pages[data.currentPage];
-      if (currentNotes.length < 5) {
-        showMessage("Создайте минимум 5 заметок, прежде чем переходить дальше!");
-        return;
-      }
-      if (currentNotes.some(n => !n.text.trim())) {
-        showMessage("Необходимо, чтобы в каждой заметке был текст!");
-        return;
-      }
-      if (data.currentPage === data.pages.length - 1) {
-        data.pages.push([]);
-      }
-      data.currentPage++;
-      render("right");
-      save();
-    };
+/* On load render */
+render();
 
-    render();
-  </script>
+/* Warn about file:// */
+if(location.protocol === 'file:'){
+  showMessage('Для корректной работы localStorage откройте сайт через локальный сервер или GitHub Pages.', 6000);
+}
+</script>
 </body>
 </html>
